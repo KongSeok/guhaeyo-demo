@@ -1,0 +1,9 @@
+{
+  "name": "충북 일자리 매칭",
+  "short_name": "충북매칭",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#00aebb",
+  "icons": []
+}
