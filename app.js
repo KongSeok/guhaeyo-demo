@@ -485,27 +485,23 @@ function toggleVoiceInput() {
   finalSpeechTranscript = state.voiceTranscript ? `${state.voiceTranscript} ` : "";
 
   recognition.onresult = (event) => {
-    let interimTranscript = "";
     for (let index = event.resultIndex; index < event.results.length; index += 1) {
       const transcript = event.results[index][0].transcript.trim();
       if (!transcript) continue;
 
       if (event.results[index].isFinal) {
         finalSpeechTranscript = appendUniqueSpeech(finalSpeechTranscript, transcript);
-      } else {
-        interimTranscript = transcript;
       }
     }
-    state.voiceTranscript = `${finalSpeechTranscript}${interimTranscript ? ` ${interimTranscript}` : ""}`.trim();
     const textarea = document.querySelector("#voiceTranscript");
     const complete = document.querySelector("#completeVoice");
-    if (textarea) textarea.value = state.voiceTranscript;
-    if (complete) complete.disabled = !state.voiceTranscript;
+    if (textarea) textarea.value = state.voiceTranscript || "듣고 있어요. 말하기 종료를 누르면 내용이 정리됩니다.";
+    if (complete) complete.disabled = true;
   };
 
   recognition.onend = () => {
     state.isListening = false;
-    state.voiceTranscript = cleanupRepeatedSpeech(state.voiceTranscript);
+    state.voiceTranscript = cleanupRepeatedSpeech(finalSpeechTranscript);
     state.voiceStatus = state.voiceTranscript
       ? "말하기를 종료했어요. 인식된 내용을 확인한 뒤 완료를 눌러주세요."
       : "음성이 인식되지 않았어요. 다시 누르거나 아래 칸에 직접 입력해 주세요.";
@@ -624,8 +620,17 @@ function isLikelyRepeatedSpeech(base, next) {
 }
 
 function cleanupRepeatedSpeech(value) {
-  const words = normalizeSpeechText(value).split(" ").filter(Boolean);
-  if (words.length < 6) return normalizeSpeechText(value);
+  const normalized = normalizeSpeechText(value);
+  const words = normalized.split(" ").filter(Boolean);
+  if (words.length < 6) return normalized;
+
+  for (let size = Math.floor(words.length / 2); size >= 2; size -= 1) {
+    const first = words.slice(0, size).join(" ");
+    const rest = words.slice(size, size * 2).join(" ");
+    if (first && first === rest) {
+      return cleanupRepeatedSpeech(words.slice(0, size).join(" "));
+    }
+  }
 
   const result = [];
   for (const word of words) {
