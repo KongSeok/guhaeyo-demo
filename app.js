@@ -888,13 +888,23 @@ function renderResults() {
       <div class="job-list">
         ${visible.map((job) => `
           <article class="job">
-            <h3>${job.title}</h3>
-            ${Number.isFinite(Number(job.score)) ? `<p class="score">추천 점수 ${Math.round(Number(job.score))}점</p>` : ""}
-            <p>${job.company ? `${job.company} · ` : ""}${job.summary}</p>
-            ${job.reason ? `<p class="reason">${job.reason}</p>` : ""}
+            <div class="job-top">
+              <div>
+                <p class="job-company">${job.company || "공고"}</p>
+                <h3>${job.title}</h3>
+              </div>
+              ${Number.isFinite(Number(job.score)) ? `<div class="score-ring"><strong>${Math.round(Number(job.score))}</strong><span>점</span></div>` : ""}
+            </div>
+            ${job.reason ? `<div class="reason-box"><span>추천 이유</span><p>${job.reason}</p></div>` : ""}
+            <p class="job-summary">${job.summary}</p>
+            <div class="job-chips">
+              ${job.region ? `<span>${shortenChip(job.region)}</span>` : ""}
+              ${job.schedule ? `<span>${job.schedule}</span>` : ""}
+              ${job.certificates ? `<span>${shortenChip(job.certificates)}</span>` : ""}
+            </div>
             <div class="job-actions">
-              <a href="${job.url}" target="_blank" rel="noreferrer">공고 링크 보기</a>
-              ${job.phone ? `<a href="tel:${job.phone}">전화하기</a>` : ""}
+              <a class="job-link" href="${job.url}" target="_blank" rel="noreferrer">공고 보기</a>
+              ${job.phone ? `<a class="phone-link" href="tel:${job.phone}">전화하기</a>` : ""}
             </div>
           </article>
         `).join("")}
@@ -907,6 +917,11 @@ function renderResults() {
     state.visibleCount += 5;
     renderResults();
   });
+}
+
+function shortenChip(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > 18 ? `${text.slice(0, 18)}...` : text;
 }
 
 render();
