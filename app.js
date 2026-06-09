@@ -140,10 +140,26 @@ let introTimer = null;
 let recognition = null;
 let mediaRecorder = null;
 let audioChunks = [];
+let finalSpeechTranscript = "";
+
+window.addEventListener("nativeSpeechResult", (event) => {
+  const transcript = event.detail?.transcript || "";
+  if (!transcript) return;
+  state.voiceTranscript = transcript;
+  state.voiceStatus = "음성 내용을 인식했어요. 내용을 확인한 뒤 완료를 눌러주세요.";
+  state.isListening = false;
+  if (state.screen === "voice") renderVoice();
+});
+
+window.addEventListener("nativeSpeechError", () => {
+  state.isListening = false;
+  state.voiceStatus = "지금은 음성을 글자로 바꾸기 어려워요. 말씀하실 내용을 아래에 적어주시면 이어서 도와드릴게요.";
+  if (state.screen === "voice") renderVoice();
+});
 
 function years() {
   const thisYear = new Date().getFullYear();
-  const maxBirthYear = thisYear - 35;
+  const maxBirthYear = thisYear - 40;
   return Array.from({ length: 80 }, (_, i) => maxBirthYear - i);
 }
 
@@ -226,7 +242,7 @@ function renderProfile() {
         </div>
         <div class="field">
           <label>생년월일</label>
-          <p class="hint">현재는 만 35세 이상만 선택할 수 있어요.</p>
+          <p class="hint">현재는 만 40세 이상만 선택할 수 있어요.</p>
           <div class="date-grid">
             <select id="year"><option value="">연도</option>${years().map((y) => `<option ${state.profile.year == y ? "selected" : ""}>${y}</option>`).join("")}</select>
             <select id="month"><option value="">월</option>${Array.from({ length: 12 }, (_, i) => i + 1).map((m) => `<option value="${m}" ${state.profile.month == m ? "selected" : ""}>${m}월</option>`).join("")}</select>
@@ -427,6 +443,13 @@ function renderVoice() {
 
 function toggleVoiceInput() {
   if (state.isListening) {
+    if (window.NativeBridge?.stopSpeech) {
+      window.NativeBridge.stopSpeech();
+      state.isListening = false;
+      state.voiceStatus = "말하기를 종료했어요. 인식된 내용을 확인해 주세요.";
+      renderVoice();
+      return;
+    }
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
       stopAudioRecordingFallback();
       return;
@@ -435,6 +458,14 @@ function toggleVoiceInput() {
     state.isListening = false;
     state.voiceStatus = "말하기를 종료했어요. 인식된 내용을 확인한 뒤 완료를 눌러주세요.";
     renderVoice();
+    return;
+  }
+
+  if (window.NativeBridge?.startSpeech) {
+    state.isListening = true;
+    state.voiceStatus = "듣고 있어요. 말씀하신 내용이 아래에 표시됩니다.";
+    renderVoice();
+    window.NativeBridge.startSpeech();
     return;
   }
 
@@ -451,13 +482,21 @@ function toggleVoiceInput() {
   recognition.lang = "ko-KR";
   recognition.interimResults = true;
   recognition.continuous = true;
+  finalSpeechTranscript = state.voiceTranscript ? `${state.voiceTranscript} ` : "";
 
   recognition.onresult = (event) => {
-    let transcript = "";
-    for (let index = 0; index < event.results.length; index += 1) {
-      transcript += event.results[index][0].transcript;
+    let interimTranscript = "";
+    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      const transcript = event.results[index][0].transcript.trim();
+      if (!transcript) continue;
+
+      if (event.results[index].isFinal) {
+        finalSpeechTranscript = appendUniqueSpeech(finalSpeechTranscript, transcript);
+      } else {
+        interimTranscript = transcript;
+      }
     }
-    state.voiceTranscript = transcript.trim();
+    state.voiceTranscript = `${finalSpeechTranscript}${interimTranscript ? ` ${interimTranscript}` : ""}`.trim();
     const textarea = document.querySelector("#voiceTranscript");
     const complete = document.querySelector("#completeVoice");
     if (textarea) textarea.value = state.voiceTranscript;
@@ -559,6 +598,18 @@ function blobToDataUrl(blob) {
   });
 }
 
+function appendUniqueSpeech(base, next) {
+  const normalizedBase = normalizeSpeechText(base);
+  const normalizedNext = normalizeSpeechText(next);
+  if (!normalizedNext || normalizedBase.endsWith(normalizedNext)) return base;
+  if (normalizedBase.includes(normalizedNext) && normalizedNext.length > 6) return base;
+  return `${base}${base.trim() ? " " : ""}${next}`.trimEnd();
+}
+
+function normalizeSpeechText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
 function renderMainMenu() {
   app.innerHTML = `
     <section class="panel menu-panel">
@@ -643,6 +694,14 @@ async function loadStaticJobs(payload) {
     const jobs = await response.json();
     return selectStaticJobs(payload, jobs).slice(0, 15);
   } catch {
+    try {
+      if (window.NativeBridge?.getJobsJson) {
+        const jobs = JSON.parse(window.NativeBridge.getJobsJson());
+        return selectStaticJobs(payload, jobs).slice(0, 15);
+      }
+    } catch {
+      return fallbackJobs;
+    }
     return fallbackJobs;
   }
 }
@@ -708,7 +767,11 @@ function filterStaticJobsByRegion(regions, jobs) {
     return selected.some((region) => staticRegionMatcher(region).some((keyword) => regionText.includes(normalizeText(keyword))));
   });
 
-  return matched.length ? matched : jobs;
+  if (!matched.length) return jobs;
+
+  const matchedUrls = new Set(matched.map((job) => job.url));
+  const rest = jobs.filter((job) => !matchedUrls.has(job.url));
+  return [...matched, ...rest];
 }
 
 function staticRegionMatcher(region) {
@@ -805,7 +868,7 @@ function renderResults() {
           </article>
         `).join("")}
       </div>
-      ${state.visibleCount < state.jobs.length ? `<button class="primary" id="showMore">다음 5개 보기</button>` : `<p class="hint">추천 공고 15개를 모두 확인했어요.</p>`}
+      ${state.visibleCount < state.jobs.length ? `<button class="primary" id="showMore">다음 5개 보기</button>` : `<p class="hint">추천 공고 ${state.jobs.length}개를 모두 확인했어요.</p>`}
     </section>
   `;
   const showMore = document.querySelector("#showMore");
