@@ -505,6 +505,7 @@ function toggleVoiceInput() {
 
   recognition.onend = () => {
     state.isListening = false;
+    state.voiceTranscript = cleanupRepeatedSpeech(state.voiceTranscript);
     state.voiceStatus = state.voiceTranscript
       ? "말하기를 종료했어요. 인식된 내용을 확인한 뒤 완료를 눌러주세요."
       : "음성이 인식되지 않았어요. 다시 누르거나 아래 칸에 직접 입력해 주세요.";
@@ -602,12 +603,37 @@ function appendUniqueSpeech(base, next) {
   const normalizedBase = normalizeSpeechText(base);
   const normalizedNext = normalizeSpeechText(next);
   if (!normalizedNext || normalizedBase.endsWith(normalizedNext)) return base;
+  if (normalizedBase && normalizedNext.startsWith(normalizedBase)) return next;
+  if (normalizedNext && normalizedBase.startsWith(normalizedNext)) return base;
   if (normalizedBase.includes(normalizedNext) && normalizedNext.length > 6) return base;
+  if (isLikelyRepeatedSpeech(normalizedBase, normalizedNext)) return base;
   return `${base}${base.trim() ? " " : ""}${next}`.trimEnd();
 }
 
 function normalizeSpeechText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function isLikelyRepeatedSpeech(base, next) {
+  const baseWords = base.split(" ").filter(Boolean);
+  const nextWords = next.split(" ").filter(Boolean);
+  if (baseWords.length < 3 || nextWords.length < 3) return false;
+
+  const overlap = nextWords.filter((word) => baseWords.includes(word)).length;
+  return overlap / nextWords.length > 0.72;
+}
+
+function cleanupRepeatedSpeech(value) {
+  const words = normalizeSpeechText(value).split(" ").filter(Boolean);
+  if (words.length < 6) return normalizeSpeechText(value);
+
+  const result = [];
+  for (const word of words) {
+    const recent = result.slice(-8);
+    const duplicateNearby = recent.includes(word) && word.length > 1;
+    if (!duplicateNearby) result.push(word);
+  }
+  return result.join(" ");
 }
 
 function renderMainMenu() {
