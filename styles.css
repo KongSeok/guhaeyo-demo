@@ -58,6 +58,20 @@ textarea {
   box-shadow: 0 8px 18px rgba(0, 22, 85, 0.18);
 }
 
+.top-back {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 12px;
+  color: var(--cb-navy);
+  background: #eaf9fb;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(0, 22, 85, 0.08);
+}
+
 .hero {
   min-height: calc(100vh - 80px);
   display: flex;

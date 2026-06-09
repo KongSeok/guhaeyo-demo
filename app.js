@@ -133,6 +133,7 @@ const state = {
   greetingReady: false,
   jobs: [],
   currentJobIndex: 0,
+  modeBackScreen: "profile",
 };
 
 const app = document.querySelector("#app");
@@ -290,13 +291,16 @@ function validateProfile() {
   const complete = state.profile.name && state.profile.year && state.profile.month && state.profile.day && state.profile.gender;
   const button = document.querySelector("#completeProfile");
   button.disabled = !complete;
-  button.onclick = () => setScreen("mode");
+  button.onclick = () => {
+    state.modeBackScreen = "profile";
+    setScreen("mode");
+  };
 }
 
 function renderModeSelect() {
   app.innerHTML = `
     <section class="panel mode-panel">
-      <div class="brand"><span class="brand-mark"></span><span>충북 일자리 매칭</span></div>
+      ${topBackButton(state.modeBackScreen)}
       <div class="content-zone mode-zone">
         <h2>${state.profile.name}님, 어떤 방식으로 시작할까요?</h2>
         <p class="lead">편한 방법으로 정보를 알려주시면 맞춤 공고 추천에 활용할게요.</p>
@@ -313,6 +317,7 @@ function renderModeSelect() {
       </div>
     </section>
   `;
+  bindTopBack();
   document.querySelector("#chooseSurvey").addEventListener("click", () => {
     state.index = 0;
     setScreen("survey");
@@ -327,6 +332,7 @@ function renderSurvey() {
 
   app.innerHTML = `
     <section class="panel">
+      ${topBackButton("mode")}
       <div class="progress">
         <div class="bar"><span style="width:${percent}%"></span></div>
         <strong>${state.index + 1}/${questions.length}</strong>
@@ -343,6 +349,7 @@ function renderSurvey() {
     </section>
   `;
 
+  bindTopBack();
   document.querySelectorAll(".choice").forEach((button) => {
     button.addEventListener("click", () => chooseOption(question, button.dataset.option));
   });
@@ -400,7 +407,7 @@ function renderVoice() {
   const supported = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
   app.innerHTML = `
     <section class="panel voice-panel">
-      <div class="brand"><span class="brand-mark"></span><span>충북 일자리 매칭</span></div>
+      ${topBackButton("mode")}
       <div class="voice-prompt-box">
         <h2>말씀해주시면 좋아요</h2>
         <ul>
@@ -428,10 +435,10 @@ function renderVoice() {
       <p class="hint">${state.voiceStatus || (supported ? "마이크 권한 요청이 뜨면 허용을 눌러주세요. 브레이브에서 인식이 안 되면 녹음 방식으로 자동 전환됩니다." : "이 브라우저는 내장 음성 인식이 제한될 수 있어요. 버튼을 누르면 녹음 방식으로 시도합니다.")}</p>
       <textarea id="voiceTranscript" class="transcript" placeholder="인식된 내용이 여기에 표시됩니다.">${state.voiceTranscript}</textarea>
       <button class="primary bottom-button" id="completeVoice" ${state.voiceTranscript.trim() ? "" : "disabled"}>완료</button>
-      <button class="secondary" id="backToMode">이전</button>
     </section>
   `;
 
+  bindTopBack();
   document.querySelector("#toggleVoice").addEventListener("click", toggleVoiceInput);
   document.querySelector("#voiceTranscript").addEventListener("input", (event) => {
     state.voiceTranscript = event.target.value;
@@ -441,7 +448,6 @@ function renderVoice() {
     state.answers.voiceTranscript = state.voiceTranscript.trim();
     setScreen("complete");
   });
-  document.querySelector("#backToMode").addEventListener("click", () => setScreen("mode"));
 }
 
 function toggleVoiceInput() {
@@ -681,14 +687,17 @@ function renderMainMenu() {
     </section>
   `;
   document.querySelector("#showJobs").addEventListener("click", loadRecommendations);
-  document.querySelector("#rewriteApplication").addEventListener("click", () => setScreen("mode"));
+  document.querySelector("#rewriteApplication").addEventListener("click", () => {
+    state.modeBackScreen = "menu";
+    setScreen("mode");
+  });
   document.querySelector("#openSettings").addEventListener("click", () => setScreen("settings"));
 }
 
 function renderSettings() {
   app.innerHTML = `
     <section class="panel settings-panel">
-      <div class="brand"><span class="brand-mark"></span><span>충북 일자리 매칭</span></div>
+      ${topBackButton("menu")}
       <div class="content-zone">
         <h2>설정</h2>
         <p class="lead">나중에 더 편하게 볼 수 있도록 화면 옵션을 넣을 자리예요.</p>
@@ -703,10 +712,18 @@ function renderSettings() {
           </button>
         </div>
       </div>
-      <button class="secondary bottom-button" id="backToMenu">메인으로</button>
     </section>
   `;
-  document.querySelector("#backToMenu").addEventListener("click", () => setScreen("menu"));
+  bindTopBack();
+}
+
+function topBackButton(target) {
+  return `<button class="top-back" data-back="${target}" aria-label="뒤로 가기">‹</button>`;
+}
+
+function bindTopBack() {
+  const back = document.querySelector("[data-back]");
+  if (back) back.addEventListener("click", () => setScreen(back.dataset.back));
 }
 
 function renderComplete() {
@@ -920,12 +937,13 @@ function renderResults() {
   if (!total) {
     app.innerHTML = `
       <section class="panel">
-        <div class="brand"><span class="brand-mark"></span><span>충북 일자리 매칭</span></div>
+        ${topBackButton("menu")}
         <h2>추천 공고를 불러오지 못했어요</h2>
         <p class="lead">잠시 뒤 다시 시도해 주세요.</p>
         <button class="primary" id="retryJobs">다시 보기</button>
       </section>
     `;
+    bindTopBack();
     document.querySelector("#retryJobs").addEventListener("click", loadRecommendations);
     return;
   }
@@ -934,7 +952,7 @@ function renderResults() {
   const job = state.jobs[state.currentJobIndex];
   app.innerHTML = `
     <section class="panel results-panel">
-      <div class="brand"><span class="brand-mark"></span><span>충북 일자리 매칭</span></div>
+      ${topBackButton("menu")}
       <h2>${state.profile.name}님에게 맞는 추천 공고</h2>
       <p class="lead">상위 ${total}개 공고를 하나씩 넘겨볼 수 있어요.</p>
       <div class="job-carousel" id="jobCarousel">
@@ -965,6 +983,7 @@ function renderResults() {
       </div>
     </section>
   `;
+  bindTopBack();
   document.querySelector("#prevJob").addEventListener("click", previousJob);
   document.querySelector("#nextJob").addEventListener("click", nextJob);
   bindJobSwipe();
