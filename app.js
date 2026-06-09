@@ -113,7 +113,7 @@ const hiddenJudgmentNotes = {
   },
 };
 
-const fallbackJobs = Array.from({ length: 15 }, (_, index) => ({
+const fallbackJobs = Array.from({ length: 20 }, (_, index) => ({
   title: `추천 공고 ${index + 1}`,
   company: "고용24 연동 대기",
   summary: "API 키를 설정하면 실제 고용24 채용공고를 불러와 Gemini가 적합도를 계산합니다.",
@@ -132,7 +132,7 @@ const state = {
   isListening: false,
   greetingReady: false,
   jobs: [],
-  visibleCount: 5,
+  currentJobIndex: 0,
 };
 
 const app = document.querySelector("#app");
@@ -187,6 +187,7 @@ function render() {
   if (state.screen === "voice") renderVoice();
   if (state.screen === "complete") renderComplete();
   if (state.screen === "menu") renderMainMenu();
+  if (state.screen === "settings") renderSettings();
   if (state.screen === "loading") renderLoading();
   if (state.screen === "results") renderResults();
 }
@@ -224,7 +225,8 @@ function renderGreeting() {
   if (!state.greetingReady) {
     introTimer = setTimeout(() => {
       state.greetingReady = true;
-      renderGreeting();
+      const goProfile = document.querySelector("#goProfile");
+      if (goProfile) goProfile.disabled = false;
     }, 1000);
   }
 }
@@ -422,6 +424,7 @@ function renderVoice() {
         </span>
         <span>${state.isListening ? "말하기 종료" : "마이크로 말하기"}</span>
       </button>
+      <p class="voice-stop-note">말씀을 마친 뒤 버튼을 한 번 더 누르면 텍스트로 정리돼요.</p>
       <p class="hint">${state.voiceStatus || (supported ? "마이크 권한 요청이 뜨면 허용을 눌러주세요. 브레이브에서 인식이 안 되면 녹음 방식으로 자동 전환됩니다." : "이 브라우저는 내장 음성 인식이 제한될 수 있어요. 버튼을 누르면 녹음 방식으로 시도합니다.")}</p>
       <textarea id="voiceTranscript" class="transcript" placeholder="인식된 내용이 여기에 표시됩니다.">${state.voiceTranscript}</textarea>
       <button class="primary bottom-button" id="completeVoice" ${state.voiceTranscript.trim() ? "" : "disabled"}>완료</button>
@@ -659,7 +662,15 @@ function renderMainMenu() {
         <div class="menu-grid">
           <button class="menu-card" id="showJobs">
             <strong>공고보기</strong>
-            <span>맞춤 추천 공고와 추천 이유를 확인해요.</span>
+            <span>맞춤 추천 공고를 한눈에 확인해요.</span>
+          </button>
+          <button class="menu-card" id="rewriteApplication">
+            <strong>지원서 다시쓰기</strong>
+            <span>체크리스트나 음성으로 내용을 다시 작성해요.</span>
+          </button>
+          <button class="menu-card" id="openSettings">
+            <strong>설정</strong>
+            <span>글자 크기와 화면 모드는 다음 단계에서 조절할 수 있게 할게요.</span>
           </button>
           <button class="menu-card disabled-card" id="nearJobs" disabled>
             <strong>내 주변 일자리 보기</strong>
@@ -670,6 +681,32 @@ function renderMainMenu() {
     </section>
   `;
   document.querySelector("#showJobs").addEventListener("click", loadRecommendations);
+  document.querySelector("#rewriteApplication").addEventListener("click", () => setScreen("mode"));
+  document.querySelector("#openSettings").addEventListener("click", () => setScreen("settings"));
+}
+
+function renderSettings() {
+  app.innerHTML = `
+    <section class="panel settings-panel">
+      <div class="brand"><span class="brand-mark"></span><span>충북 일자리 매칭</span></div>
+      <div class="content-zone">
+        <h2>설정</h2>
+        <p class="lead">나중에 더 편하게 볼 수 있도록 화면 옵션을 넣을 자리예요.</p>
+        <div class="setting-list">
+          <button class="setting-row" disabled>
+            <strong>다크모드</strong>
+            <span>준비 중</span>
+          </button>
+          <button class="setting-row" disabled>
+            <strong>글자 크기</strong>
+            <span>좀 작게 · 기본 · 더 크게</span>
+          </button>
+        </div>
+      </div>
+      <button class="secondary bottom-button" id="backToMenu">메인으로</button>
+    </section>
+  `;
+  document.querySelector("#backToMenu").addEventListener("click", () => setScreen("menu"));
 }
 
 function renderComplete() {
@@ -714,7 +751,7 @@ async function loadRecommendations() {
     await minimumThinkingTime;
     state.jobs = await loadStaticJobs(payload);
   }
-  state.visibleCount = 5;
+  state.currentJobIndex = 0;
   setScreen("results");
 }
 
@@ -723,12 +760,12 @@ async function loadStaticJobs(payload) {
     const response = await fetch("./jobs.json");
     if (!response.ok) throw new Error("static jobs failed");
     const jobs = await response.json();
-    return selectStaticJobs(payload, jobs).slice(0, 15);
+    return selectStaticJobs(payload, jobs).slice(0, 20);
   } catch {
     try {
       if (window.NativeBridge?.getJobsJson) {
         const jobs = JSON.parse(window.NativeBridge.getJobsJson());
-        return selectStaticJobs(payload, jobs).slice(0, 15);
+        return selectStaticJobs(payload, jobs).slice(0, 20);
       }
     } catch {
       return fallbackJobs;
@@ -871,52 +908,100 @@ function renderLoading() {
     <section class="loader">
       <div>
         <div class="spinner"></div>
-        <h2>답변을 분석하고 있어요</h2>
-        <p class="lead">Gemini가 체크리스트와 공고를 비교하는 중입니다.</p>
+        <h2>공고를 비교하고 있어요</h2>
+        <p class="lead">조금만 기다려주세요. 입력해주신 내용과 공고를 차분히 비교하고 있어요.</p>
       </div>
     </section>
   `;
 }
 
 function renderResults() {
-  const visible = state.jobs.slice(0, state.visibleCount);
+  const total = Math.min(state.jobs.length, 20);
+  if (!total) {
+    app.innerHTML = `
+      <section class="panel">
+        <div class="brand"><span class="brand-mark"></span><span>충북 일자리 매칭</span></div>
+        <h2>추천 공고를 불러오지 못했어요</h2>
+        <p class="lead">잠시 뒤 다시 시도해 주세요.</p>
+        <button class="primary" id="retryJobs">다시 보기</button>
+      </section>
+    `;
+    document.querySelector("#retryJobs").addEventListener("click", loadRecommendations);
+    return;
+  }
+
+  state.currentJobIndex = Math.max(0, Math.min(state.currentJobIndex, total - 1));
+  const job = state.jobs[state.currentJobIndex];
   app.innerHTML = `
-    <section class="panel">
+    <section class="panel results-panel">
       <div class="brand"><span class="brand-mark"></span><span>충북 일자리 매칭</span></div>
       <h2>${state.profile.name}님에게 맞는 추천 공고</h2>
-      <p class="lead">상위 ${Math.min(state.visibleCount, state.jobs.length)}개를 보여드려요.</p>
-      <div class="job-list">
-        ${visible.map((job) => `
-          <article class="job">
-            <div class="job-top">
-              <div>
-                <p class="job-company">${job.company || "공고"}</p>
-                <h3>${job.title}</h3>
-              </div>
-              ${Number.isFinite(Number(job.score)) ? `<div class="score-ring"><strong>${Math.round(Number(job.score))}</strong><span>점</span></div>` : ""}
+      <p class="lead">상위 ${total}개 공고를 하나씩 넘겨볼 수 있어요.</p>
+      <div class="job-carousel" id="jobCarousel">
+        <article class="job">
+          <div class="job-top">
+            <div>
+              <p class="job-company">${job.company || "공고"}</p>
+              <h3>${job.title}</h3>
             </div>
-            ${job.reason ? `<div class="reason-box"><span>추천 이유</span><p>${job.reason}</p></div>` : ""}
-            <p class="job-summary">${job.summary}</p>
-            <div class="job-chips">
-              ${job.region ? `<span>${shortenChip(job.region)}</span>` : ""}
-              ${job.schedule ? `<span>${job.schedule}</span>` : ""}
-              ${job.certificates ? `<span>${shortenChip(job.certificates)}</span>` : ""}
-            </div>
-            <div class="job-actions">
-              <a class="job-link" href="${job.url}" target="_blank" rel="noreferrer">공고 보기</a>
-              ${job.phone ? `<a class="phone-link" href="tel:${job.phone}">전화하기</a>` : ""}
-            </div>
-          </article>
-        `).join("")}
+            ${Number.isFinite(Number(job.score)) ? `<div class="score-ring"><strong>${Math.round(Number(job.score))}</strong><span>점</span></div>` : ""}
+          </div>
+          ${job.reason ? `<div class="reason-box"><span>추천 이유</span><p>${job.reason}</p></div>` : ""}
+          <div class="job-chips">
+            ${job.region ? `<span>${shortenChip(job.region)}</span>` : ""}
+            ${job.schedule ? `<span>${shortenChip(job.schedule)}</span>` : ""}
+            ${job.certificates ? `<span>${shortenChip(job.certificates)}</span>` : ""}
+          </div>
+          <div class="job-actions">
+            <a class="job-link" href="${job.url}" target="_blank" rel="noreferrer">공고 보기</a>
+            ${job.phone ? `<a class="phone-link" href="tel:${job.phone}">전화하기</a>` : ""}
+          </div>
+        </article>
       </div>
-      ${state.visibleCount < state.jobs.length ? `<button class="primary" id="showMore">다음 5개 보기</button>` : `<p class="hint">추천 공고 ${state.jobs.length}개를 모두 확인했어요.</p>`}
+      <div class="job-nav">
+        <button class="secondary" id="prevJob" ${state.currentJobIndex === 0 ? "disabled" : ""}>이전 공고</button>
+        <span>${state.currentJobIndex + 1} / ${total}</span>
+        <button class="primary" id="nextJob" ${state.currentJobIndex === total - 1 ? "disabled" : ""}>다음 공고</button>
+      </div>
     </section>
   `;
-  const showMore = document.querySelector("#showMore");
-  if (showMore) showMore.addEventListener("click", () => {
-    state.visibleCount += 5;
+  document.querySelector("#prevJob").addEventListener("click", previousJob);
+  document.querySelector("#nextJob").addEventListener("click", nextJob);
+  bindJobSwipe();
+}
+
+function previousJob() {
+  if (state.currentJobIndex > 0) {
+    state.currentJobIndex -= 1;
     renderResults();
-  });
+  }
+}
+
+function nextJob() {
+  const total = Math.min(state.jobs.length, 20);
+  if (state.currentJobIndex < total - 1) {
+    state.currentJobIndex += 1;
+    renderResults();
+  }
+}
+
+function bindJobSwipe() {
+  const carousel = document.querySelector("#jobCarousel");
+  if (!carousel) return;
+  let startX = 0;
+  let startY = 0;
+  carousel.addEventListener("touchstart", (event) => {
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+  }, { passive: true });
+  carousel.addEventListener("touchend", (event) => {
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    if (Math.abs(deltaX) < 45 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+    if (deltaX < 0) nextJob();
+    if (deltaX > 0) previousJob();
+  }, { passive: true });
 }
 
 function shortenChip(value) {

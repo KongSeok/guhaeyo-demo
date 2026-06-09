@@ -406,6 +406,39 @@ textarea {
   cursor: not-allowed;
 }
 
+.setting-list {
+  display: grid;
+  gap: 12px;
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 15px;
+  color: var(--cb-navy);
+  background: #f7fcfd;
+  text-align: left;
+}
+
+.setting-row strong {
+  font-size: 17px;
+}
+
+.setting-row span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.setting-row:disabled {
+  opacity: 0.72;
+}
+
 .voice-panel {
   padding-top: 26px;
 }
@@ -452,6 +485,15 @@ textarea {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.55;
+}
+
+.voice-stop-note {
+  margin-top: -6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
 }
 
 .mic-button {
@@ -644,6 +686,10 @@ textarea {
   line-height: 1.62;
 }
 
+.job-carousel {
+  touch-action: pan-y;
+}
+
 .score-ring {
   display: grid;
   place-items: center;
@@ -733,6 +779,21 @@ textarea {
 
 .phone-link {
   background: var(--cb-teal);
+}
+
+.job-nav {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-top: 18px;
+}
+
+.job-nav span {
+  color: var(--cb-navy);
+  font-size: 15px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .hint {
